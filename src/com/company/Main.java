@@ -1,9 +1,12 @@
 package com.company;
 
 import com.vmware.vcloud.api.rest.schema.*;
+import com.vmware.vcloud.api.rest.schema.extension.VMWExternalNetworkReferencesType;
 import com.vmware.vcloud.api.rest.schema.extension.VMWExternalNetworkType;
 import com.vmware.vcloud.api.rest.schema.extension.VimObjectRefType;
 import com.vmware.vcloud.sdk.*;
+import com.vmware.vcloud.sdk.admin.ExternalNetwork;
+import com.vmware.vcloud.sdk.admin.extensions.VMWExternalNetwork;
 import com.vmware.vcloud.sdk.constants.FenceModeValuesType;
 import com.vmware.vcloud.sdk.constants.Version;
 import com.vmware.vcloud.sdk.constants.query.ExpressionType;
@@ -65,10 +68,20 @@ public class Main {
         try {
             client.login(Username, Password);
         } catch (VCloudException e) {
-            System.out.println(String.format("Error durint vCloud Director Connection. vCD: %s", Url));
+            System.out.println(String.format("Error during vCloud Director Connection. vCD: %s", Url));
             System.out.println(String.format("Error: %s", e.getMessage()));
             System.exit(1);
         }
+
+        /* Get existent External Networks */
+        try {
+            VMWExternalNetwork.getVMWExternalNetworkById(client, null);
+        } catch (VCloudException e) {
+            System.out.println("Error during Network Retrieve.");
+            System.out.println(String.format("Error: %s", e.getMessage()));
+            System.exit(1);
+        }
+
     }
 
     /**
