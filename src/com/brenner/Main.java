@@ -1,12 +1,9 @@
-package com.company;
+package com.brenner;
 
 import com.vmware.vcloud.api.rest.schema.*;
-import com.vmware.vcloud.api.rest.schema.extension.VMWExternalNetworkReferencesType;
 import com.vmware.vcloud.api.rest.schema.extension.VMWExternalNetworkType;
 import com.vmware.vcloud.api.rest.schema.extension.VimObjectRefType;
 import com.vmware.vcloud.sdk.*;
-import com.vmware.vcloud.sdk.admin.ExternalNetwork;
-import com.vmware.vcloud.sdk.admin.extensions.VMWExternalNetwork;
 import com.vmware.vcloud.sdk.constants.FenceModeValuesType;
 import com.vmware.vcloud.sdk.constants.Version;
 import com.vmware.vcloud.sdk.constants.query.ExpressionType;
@@ -35,17 +32,14 @@ public class Main {
                 .defaultHelp(true)
                 .description("Create external networks on vCloud");
         parser.addArgument("-v", "--vcloud")
+                .required(true)
                 .help("vCloud URL");
         parser.addArgument("-u", "--username")
+                .required(true)
                 .help("vCloud Username");
         parser.addArgument("-p", "--password")
+                .required(true)
                 .help("vCloud Password");
-        parser.addArgument("--vcenter")
-                .help("vCenter URI");
-        parser.addArgument("--vcenter-username")
-                .help("vCenter Username");
-        parser.addArgument("--vcenter-password")
-                .help("vCenter Password");
         parser.addArgument("--whatif").action(Arguments.storeTrue())
                 .setDefault(true)
                 .required(false);
@@ -59,29 +53,45 @@ public class Main {
             parser.handleError(e);
             System.exit(1);
         }
+
+        /* Connecting to vCloud Director... */
+        try {
+            client = Connect(
+                    ns.getString("username"),
+                    ns.getString("password"),
+                    ns.getString("vcloud")
+                    );
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        } catch (UnrecoverableKeyException | KeyStoreException | KeyManagementException e) {
+            e.printStackTrace();
+            System.exit(1);
+        } catch (VCloudException e) {
+            System.out.println(String.format("Error during vCloud Director Connection. vCD: %s",
+                    ns.getString("vcloud")));
+            System.out.println(String.format("Error: %s", e.getMessage()));
+            System.exit(1);
+            e.printStackTrace();
+        }
+
     }
 
-    public static void Connect(String Username, String Password, String Url)
-            throws UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException {
+    /**
+     * @param Username vCloud Director Administrative Username
+     * @param Password vCloud Director Administrative Password
+     * @param Url vCloud Director UI
+     * @throws UnrecoverableKeyException Cert Exception
+     * @throws NoSuchAlgorithmException Cert Exception
+     * @throws KeyStoreException Cert Exception
+     * @throws KeyManagementException Cert Exception
+     * @throws VCloudException Connection error.
+     */
+    private static VcloudClient Connect(String Username, String Password, String Url)
+            throws UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException, VCloudException {
         VcloudClient client = new VcloudClient(Url, Version.V5_6);
         client.registerScheme("https", 443, FakeSSLSocketFactory.getInstance());
-        try {
-            client.login(Username, Password);
-        } catch (VCloudException e) {
-            System.out.println(String.format("Error during vCloud Director Connection. vCD: %s", Url));
-            System.out.println(String.format("Error: %s", e.getMessage()));
-            System.exit(1);
-        }
-
-        /* Get existent External Networks */
-        try {
-            VMWExternalNetwork.getVMWExternalNetworkById(client, null);
-        } catch (VCloudException e) {
-            System.out.println("Error during Network Retrieve.");
-            System.out.println(String.format("Error: %s", e.getMessage()));
-            System.exit(1);
-        }
-
+        client.login(Username, Password);
+        return client;
     }
 
     /**
@@ -92,7 +102,7 @@ public class Main {
      * @return VMWExternalNetworkType
      * @throws VCloudException
      */
-    private static VMWExternalNetworkType createExternalNetworkParams(
+    public static VMWExternalNetworkType createExternalNetworkParams(
             ReferenceType vimServerRef, String moRef, String externalNetworkName)
             throws VCloudException {
         VMWExternalNetworkType vmwExternalNetworkType = new VMWExternalNetworkType();

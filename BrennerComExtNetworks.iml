@@ -8,6 +8,17 @@
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="net.sourceforge.argparse4j:argparse4j:0.8.1" level="project" />
-    <orderEntry type="library" name="amqp-client-2.8.6" level="application" />
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="file://$USER_HOME$/Desktop/SDKs/VMware-vCloudDirector-JavaSDK/libs" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+        <jarDirectory url="file://$USER_HOME$/Desktop/SDKs/VMware-vCloudDirector-JavaSDK/libs" recursive="false" />
+      </library>
+    </orderEntry>
+    <orderEntry type="library" scope="TEST" name="junit:junit:4.12" level="project" />
+    <orderEntry type="library" name="junit:junit:4.12" level="project" />
   </component>
 </module>
