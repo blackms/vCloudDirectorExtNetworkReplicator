@@ -8,6 +8,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Optional;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -37,7 +38,7 @@ public class ExternalNetworksTest {
     @Test
     public void getExternalNetworks() throws Exception {
         ExternalNetworks ext = new ExternalNetworks(this.client);
-        ArrayList<ExternalNetwork> nets = ext.getExternalNetworks();
+        ArrayList<ExternalNetwork> nets = ext.getExternalNetworks(Optional.empty());
         assertNotNull(nets);
     }
 }

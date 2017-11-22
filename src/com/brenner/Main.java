@@ -48,6 +48,9 @@ public class Main {
                 .required(false)
                 .help("Filter only selected external networks")
                 .setDefault("NO_FILTER");
+        parser.addArgument("--suffix")
+                .required(true)
+                .help("Suffix to append to External Network Name");
         parser.addArgument("--whatif").action(Arguments.storeTrue())
                 .setDefault(true)
                 .required(false);
@@ -84,6 +87,10 @@ public class Main {
 
         ExternalNetworks externalNetworks = new ExternalNetworks(client);
         ArrayList<ExternalNetwork> extNets;
+
+        String suffix = ns.getString("suffix");
+        String vCenterName = ns.getString("vcenter");
+
         if (ns.getString("ext-net-filter").equals("NO_FILTER")) {
             extNets = externalNetworks.getExternalNetworks(
                     Optional.empty()
@@ -97,19 +104,16 @@ public class Main {
             /* Reading existing informations */
             System.out.println(extNet);
             VMWExternalNetworkType vmwExternalNetworkType = new VMWExternalNetworkType();
-            String newExternalNetworkName = String.format("%s_btvpntxvds01", extNet.getResource().getName());
+            String newExternalNetworkName = String.format("%s_%s", extNet.getResource().getName(), suffix);
             vmwExternalNetworkType.setName(newExternalNetworkName);
 
             /* Retrieve vCenter Objects Information */
-            ReferenceType vimServerRef = externalNetworks.getVimServerRef("vcenter03");
-            String portGroupName = String.format(
-                    "%s_btvpntxvds01", extNet.getReference().getName().replace("IB", "")
-            );
-            String portGroupMoref = externalNetworks.getPortGroupMoref(portGroupName, "vcenter03");
+            ReferenceType vimServerRef = externalNetworks.getVimServerRef(vCenterName);
+            PortGroup portGroup = new PortGroup(client, extNet.getReference().getName(), suffix, vCenterName);
 
             VimObjectRefType vimObjRef = new VimObjectRefType();
-            vimObjRef.setMoRef(portGroupMoref);
-            vimObjRef.setVimObjectType(portGroupType);
+            vimObjRef.setMoRef(portGroup.getMoRef());
+            vimObjRef.setVimObjectType(portGroup.getPortGroupType());
             vimObjRef.setVimServerRef(vimServerRef);
 
             /* Clone the existent Network Configuration */
@@ -158,7 +162,7 @@ public class Main {
      * Check for tasks if any
      *
      * @param externalNetwork {@link VMWExternalNetwork}
-     * @return {@link Task}
+     * @return                {@link Task}
      * @throws VCloudException Error retrieving Tasks
      */
     private static Task returnTask(VMWExternalNetwork externalNetwork) throws VCloudException {

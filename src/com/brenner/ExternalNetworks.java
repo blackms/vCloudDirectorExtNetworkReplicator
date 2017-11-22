@@ -84,7 +84,7 @@ class ExternalNetworks extends VCloudBaseObjectImpl {
 
     /**
      * @param filter {@link String} Optional: String representing filter for ExtNet
-     * @return {@link ArrayList<ExternalNetwork>} Array of the retrieved Networks
+     * @return       {@link ArrayList<ExternalNetwork>} Array of the retrieved Networks
      * @throws VCloudException Fails to get External Networks
      */
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
