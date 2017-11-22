@@ -1,6 +1,5 @@
 package com.brenner;
 
-import com.vmware.vcloud.api.rest.schema.ReferenceType;
 import com.vmware.vcloud.sdk.VcloudClient;
 import com.vmware.vcloud.sdk.admin.ExternalNetwork;
 import com.vmware.vcloud.sdk.constants.Version;
@@ -9,7 +8,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.ArrayList;
-import java.util.Collection;
 
 import static org.junit.Assert.assertNotNull;
 
@@ -38,7 +36,7 @@ public class ExternalNetworksTest {
 
     @Test
     public void getExternalNetworks() throws Exception {
-        ExternalNetworks ext = new ExternalNetworks(client);
+        ExternalNetworks ext = new ExternalNetworks(this.client);
         ArrayList<ExternalNetwork> nets = ext.getExternalNetworks();
         assertNotNull(nets);
     }

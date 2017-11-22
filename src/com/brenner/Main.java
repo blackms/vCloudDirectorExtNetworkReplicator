@@ -1,15 +1,16 @@
 package com.brenner;
 
-import com.vmware.vcloud.api.rest.schema.*;
+import com.vmware.vcloud.api.rest.schema.NetworkConfigurationType;
+import com.vmware.vcloud.api.rest.schema.ReferenceType;
+import com.vmware.vcloud.api.rest.schema.TasksInProgressType;
 import com.vmware.vcloud.api.rest.schema.extension.VMWExternalNetworkType;
 import com.vmware.vcloud.api.rest.schema.extension.VimObjectRefType;
-import com.vmware.vcloud.sdk.*;
-import com.vmware.vcloud.sdk.constants.FenceModeValuesType;
+import com.vmware.vcloud.sdk.Task;
+import com.vmware.vcloud.sdk.VCloudException;
+import com.vmware.vcloud.sdk.VcloudClient;
+import com.vmware.vcloud.sdk.admin.ExternalNetwork;
+import com.vmware.vcloud.sdk.admin.extensions.VMWExternalNetwork;
 import com.vmware.vcloud.sdk.constants.Version;
-import com.vmware.vcloud.sdk.constants.query.ExpressionType;
-import com.vmware.vcloud.sdk.constants.query.FilterType;
-import com.vmware.vcloud.sdk.constants.query.QueryPortgroupField;
-import com.vmware.vcloud.sdk.constants.query.QueryRecordType;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
@@ -21,13 +22,13 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.UnrecoverableKeyException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeoutException;
 
 public class Main {
     private static VcloudClient client;
-    private static String portGroupType = "";
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws VCloudException, TimeoutException {
         ArgumentParser parser = ArgumentParsers.newFor("BrennerComExtNetworks").build()
                 .defaultHelp(true)
                 .description("Create external networks on vCloud");
@@ -40,6 +41,13 @@ public class Main {
         parser.addArgument("-p", "--password")
                 .required(true)
                 .help("vCloud Password");
+        parser.addArgument("--vcenter")
+                .required(true)
+                .help("Name of the vCenter Server");
+        parser.addArgument("--ext-net-filter")
+                .required(false)
+                .help("Filter only selected external networks")
+                .setDefault("NO_FILTER");
         parser.addArgument("--whatif").action(Arguments.storeTrue())
                 .setDefault(true)
                 .required(false);
@@ -60,7 +68,7 @@ public class Main {
                     ns.getString("username"),
                     ns.getString("password"),
                     ns.getString("vcloud")
-                    );
+            );
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();
         } catch (UnrecoverableKeyException | KeyStoreException | KeyManagementException e) {
@@ -74,125 +82,93 @@ public class Main {
             e.printStackTrace();
         }
 
+        ExternalNetworks externalNetworks = new ExternalNetworks(client);
+        ArrayList<ExternalNetwork> extNets;
+        if (ns.getString("ext-net-filter").equals("NO_FILTER")) {
+            extNets = externalNetworks.getExternalNetworks(
+                    Optional.empty()
+            );
+        } else {
+            extNets = externalNetworks.getExternalNetworks(
+                    Optional.ofNullable(ns.getString("ext-net-filter"))
+            );
+        }
+        for (ExternalNetwork extNet : extNets) {
+            /* Reading existing informations */
+            System.out.println(extNet);
+            VMWExternalNetworkType vmwExternalNetworkType = new VMWExternalNetworkType();
+            String newExternalNetworkName = String.format("%s_btvpntxvds01", extNet.getResource().getName());
+            vmwExternalNetworkType.setName(newExternalNetworkName);
+
+            /* Retrieve vCenter Objects Information */
+            ReferenceType vimServerRef = externalNetworks.getVimServerRef("vcenter03");
+            String portGroupName = String.format(
+                    "%s_btvpntxvds01", extNet.getReference().getName().replace("IB", "")
+            );
+            String portGroupMoref = externalNetworks.getPortGroupMoref(portGroupName, "vcenter03");
+
+            VimObjectRefType vimObjRef = new VimObjectRefType();
+            vimObjRef.setMoRef(portGroupMoref);
+            vimObjRef.setVimObjectType(portGroupType);
+            vimObjRef.setVimServerRef(vimServerRef);
+
+            /* Clone the existent Network Configuration */
+            NetworkConfigurationType networkConfiguration = extNet.getResource().getConfiguration();
+
+            /* Set Configuration to Network Type */
+            vmwExternalNetworkType.setConfiguration(networkConfiguration);
+            vmwExternalNetworkType.setVimPortGroupRef(vimObjRef);
+
+            /* Execute Creation Task in vCD */
+            try {
+                VMWExternalNetwork externalNetwork = client.getVcloudAdminExtension()
+                        .createVMWExternalNetwork(vmwExternalNetworkType);
+                Task externalNetworkTask = returnTask(externalNetwork);
+                if (externalNetworkTask != null) {
+                    externalNetworkTask.waitForTask(0);
+                }
+            } catch (VCloudException exc) {
+                System.out.println("Failed to create extNet: " + extNet.getReference().getName());
+            }
+        }
     }
 
     /**
      * @param Username vCloud Director Administrative Username
      * @param Password vCloud Director Administrative Password
-     * @param Url vCloud Director UI
+     * @param Url      vCloud Director UI
      * @throws UnrecoverableKeyException Cert Exception
-     * @throws NoSuchAlgorithmException Cert Exception
-     * @throws KeyStoreException Cert Exception
-     * @throws KeyManagementException Cert Exception
-     * @throws VCloudException Connection error.
+     * @throws NoSuchAlgorithmException  Cert Exception
+     * @throws KeyStoreException         Cert Exception
+     * @throws KeyManagementException    Cert Exception
+     * @throws VCloudException           Connection error.
      */
     private static VcloudClient Connect(String Username, String Password, String Url)
-            throws UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException, VCloudException {
+            throws UnrecoverableKeyException, NoSuchAlgorithmException, KeyStoreException, KeyManagementException,
+            VCloudException {
         VcloudClient client = new VcloudClient(Url, Version.V5_6);
         client.registerScheme("https", 443, FakeSSLSocketFactory.getInstance());
         client.login(Username, Password);
         return client;
     }
 
-    /**
-     * Creates External Network
-     *
-     * @param vimServerRef {@link ReferenceType}
-     * @param moRef        {@link String}
-     * @return VMWExternalNetworkType
-     * @throws VCloudException
-     */
-    public static VMWExternalNetworkType createExternalNetworkParams(
-            ReferenceType vimServerRef, String moRef, String externalNetworkName)
-            throws VCloudException {
-        VMWExternalNetworkType vmwExternalNetworkType = new VMWExternalNetworkType();
-        vmwExternalNetworkType.setName(externalNetworkName);
-        vmwExternalNetworkType.setDescription("external network description");
 
-        VimObjectRefType vimObjRef = new VimObjectRefType();
-        vimObjRef.setMoRef(moRef);
-        vimObjRef.setVimObjectType(portGroupType);
-        vimObjRef.setVimServerRef(vimServerRef);
-
-        // creating an isolated vapp network
-        NetworkConfigurationType networkConfiguration = new NetworkConfigurationType();
-        networkConfiguration.setFenceMode(FenceModeValuesType.ISOLATED.value());
-        IpScopeType ipScope = new IpScopeType();
-        ipScope.setNetmask("255.255.255.0");
-        ipScope.setGateway("192.168.111.254");
-        ipScope.setDns1("1.2.3.4");
-        ipScope.setDnsSuffix("sample.vmware.com");
-        ipScope.setIsInherited(false);
-
-        IpScopesType ipScopes = new IpScopesType();
-        ipScopes.getIpScope().add(ipScope);
-
-        // IP Ranges
-        IpRangesType ipRangesType = new IpRangesType();
-        IpRangeType ipRangeType = new IpRangeType();
-        ipRangeType.setStartAddress("192.168.111.1");
-        ipRangeType.setEndAddress("192.168.111.19");
-        ipRangesType.getIpRange().add(ipRangeType);
-        ipScope.setIpRanges(ipRangesType);
-        networkConfiguration.setIpScopes(ipScopes);
-        vmwExternalNetworkType.setConfiguration(networkConfiguration);
-        vmwExternalNetworkType.setVimPortGroupRef(vimObjRef);
-
-        return vmwExternalNetworkType;
-    }
 
     /**
-     * Get Vim Server Reference
+     * Check for tasks if any
      *
-     * @param vimServerName {@link String}
-     * @return ReferenceType
-     * @throws VCloudException
+     * @param externalNetwork {@link VMWExternalNetwork}
+     * @return {@link Task}
+     * @throws VCloudException Error retrieving Tasks
      */
-    private static ReferenceType getVimServerRef(String vimServerName)
-            throws VCloudException {
-        return client.getVcloudAdminExtension().getVMWVimServerRefsByName()
-                .get(vimServerName);
-    }
-
-    /**
-     * Get Port Group Moref
-     *
-     * @param portGroup     {@link String}
-     * @param vimServerName {@link String}
-     * @return {@link String}
-     * @throws VCloudException
-     */
-    private static String getPortGroupMoref(String portGroup,
-                                            String vimServerName) throws VCloudException {
-        String moref = "";
-
-        Expression portGroupNameExpression = new Expression(
-                QueryPortgroupField.NAME, portGroup, ExpressionType.EQUALS);
-        Expression vcNameExpression = new Expression(
-                QueryPortgroupField.VCNAME, vimServerName,
-                ExpressionType.EQUALS);
-
-        List<Expression> expressions = new ArrayList<Expression>();
-        expressions.add(portGroupNameExpression);
-        expressions.add(vcNameExpression);
-
-        Filter filter = new Filter(FilterType.AND, expressions);
-
-        QueryParams<QueryPortgroupField> queryParams = new QueryParams<QueryPortgroupField>();
-        queryParams.setFilter(filter);
-
-        QueryService queryService = client.getQueryService();
-        RecordResult<QueryResultPortgroupRecordType> portGroupResult = queryService
-                .queryRecords(QueryRecordType.PORTGROUP, queryParams);
-        if (portGroupResult.getRecords().size() > 0) {
-            moref = portGroupResult.getRecords().get(0).getMoref();
-            portGroupType = portGroupResult.getRecords().get(0)
-                    .getPortgroupType();
-        } else {
-            System.err.println("Port Group " + portGroup + " not found in vc "
-                    + vimServerName);
-        }
-
-        return moref;
+    private static Task returnTask(VMWExternalNetwork externalNetwork) throws VCloudException {
+        TasksInProgressType tasksInProgress = externalNetwork.getResource()
+                .getTasks();
+        if (tasksInProgress != null)
+            return tasksInProgress.getTask().stream().findFirst().map(
+                    task -> new Task(client, task)
+            ).orElse(null);
+        return null;
     }
 }
+
