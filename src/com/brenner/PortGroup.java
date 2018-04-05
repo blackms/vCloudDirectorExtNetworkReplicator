@@ -85,10 +85,15 @@ public class PortGroup extends VCloudBaseObjectImpl {
     }
 
     String getPortGroupType() throws VCloudException {
+        /* If the data is already populated, just return it */
         if (Objects.nonNull(portGroupType)) {
             return portGroupType;
         }
+
+        /* If the data is not populated query for it */
         RecordResult<QueryResultPortgroupRecordType> portGroupQueried = doQuery();
+
+        /* Return the Port Group Type */
         return portGroupQueried.getRecords().get(0).getPortgroupType();
     }
 
@@ -104,7 +109,7 @@ public class PortGroup extends VCloudBaseObjectImpl {
         this.portGroupSuffix = portGroupSuffix;
     }
 
-    public void setVimServerName(String vimServerName) {
+    private void setVimServerName(String vimServerName) {
         this.vimServerName = vimServerName;
     }
 

@@ -91,26 +91,28 @@ public class Main {
         String suffix = ns.getString("suffix");
         String vCenterName = ns.getString("vcenter");
 
-        if (ns.getString("ext-net-filter").equals("NO_FILTER")) {
+        if (ns.getString("ext_net_filter").equals("NO_FILTER")) {
             extNets = externalNetworks.getExternalNetworks(
                     Optional.empty()
             );
         } else {
             extNets = externalNetworks.getExternalNetworks(
-                    Optional.ofNullable(ns.getString("ext-net-filter"))
+                    Optional.ofNullable(ns.getString("ext_net_filter"))
             );
         }
         for (ExternalNetwork extNet : extNets) {
             /* Reading existing informations */
             System.out.println(extNet);
             VMWExternalNetworkType vmwExternalNetworkType = new VMWExternalNetworkType();
-            String newExternalNetworkName = String.format("%s_%s", extNet.getResource().getName(), suffix);
+            String newExternalNetworkName = String.format("%s%s", extNet.getResource().getName(), suffix);
             vmwExternalNetworkType.setName(newExternalNetworkName);
 
             /* Retrieve vCenter Objects Information */
             ReferenceType vimServerRef = externalNetworks.getVimServerRef(vCenterName);
-            PortGroup portGroup = new PortGroup(client, extNet.getReference().getName(), suffix, vCenterName);
-
+            String portGroupName = "";
+            PortGroup portGroup;
+            portGroupName = newExternalNetworkName;
+            portGroup = new PortGroup(client, portGroupName, suffix, vCenterName);
             VimObjectRefType vimObjRef = new VimObjectRefType();
             vimObjRef.setMoRef(portGroup.getMoRef());
             vimObjRef.setVimObjectType(portGroup.getPortGroupType());
@@ -157,12 +159,11 @@ public class Main {
     }
 
 
-
     /**
      * Check for tasks if any
      *
      * @param externalNetwork {@link VMWExternalNetwork}
-     * @return                {@link Task}
+     * @return {@link Task}
      * @throws VCloudException Error retrieving Tasks
      */
     private static Task returnTask(VMWExternalNetwork externalNetwork) throws VCloudException {
@@ -175,4 +176,4 @@ public class Main {
         return null;
     }
 }
-
+ 
